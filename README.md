@@ -8,8 +8,8 @@ to run the docker container:
 docker run ingest_csv which will show the parameters
 
 To run with parameters (example):
-docker run --rm -it ingest_json -password mapr -mapr-url somehost:5678 -mapr-tablename /tmp/ingested_data ~/input.csv
+docker run --rm -it ingest_json -password mapr -mapr-url somehost:5678 -mapr-tablename /tmp/ingested_data ~/input.json
 
 Or:
-docker run --rm -it ingest_json -password mapr -mapr-url somehost:5678 -mapr-tablename /tmp/ingested_data < ~/input.csv
+docker run --rm -it ingest_json -password mapr -mapr-url somehost:5678 -mapr-tablename /tmp/ingested_data < ~/input.json
 
