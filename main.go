@@ -19,12 +19,12 @@
 package main
 
 import (
-	"encoding/csv"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"time"
-	"unicode/utf8"
 
 	client "github.com/mapr/maprdb-go-client"
 )
@@ -70,79 +70,87 @@ func connectMapR(connectionString string, storeName string) (*client.Connection,
 }
 
 func main() {
-	fname := flag.String("filename", "", "File to load")
-	separator := flag.String("separator", ",", "separator")
-	comment := flag.String("comment", "#", "Comment")
-	quotes := flag.Bool("lazyQuotes", true, "Lazy Quotes")
 	maprURL := flag.String("mapr-url", "localhost:5678", "The URL to mapr in the form localhost:5678")
 	auth := flag.String("auth", "basic", "Authorization type")
 	user := flag.String("user", "mapr", "Username for the connection")
 	password := flag.String("password", "", "Password for the user")
 	ssl := flag.Bool("use-ssl", false, "Use SSL? (true)")
-	storeName := flag.String("mapr-tablename", "", "Table to store the rows as documents")
+	storeName := flag.String("mapr-tablename", "", "Table to store the json as a document")
 
 	flag.Parse()
 
-	connectionString := buildConnectionString(maprURL, auth, user, password, ssl)
+	var data []byte
+	var err error
 
+	switch flag.NArg() {
+	case 0:
+		data, err = ioutil.ReadAll(os.Stdin)
+		break
+	case 1:
+		data, err = ioutil.ReadFile(flag.Arg(0))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+		break
+	default:
+		fmt.Printf("input must be from stdin or file\n")
+		os.Exit(1)
+	}
+
+	connectionString := buildConnectionString(maprURL, auth, user, password, ssl)
 	fmt.Println("Formatted connection string to MapR:")
 	fmt.Println(connectionString)
 
 	/* Application starts here */
 	connection, store := connectMapR(connectionString, *storeName)
 
-	f, err := os.Open(*fname)
+	fmt.Println("Connected to MapR Database")
+
+	var f interface{}
+	err = json.Unmarshal(data, &f)
 	if err != nil {
-		println("File error:", err)
-		return
+		fmt.Println(err)
+		connection.Close()
+		os.Exit(-1)
 	}
 
-	r := csv.NewReader(f)
-	val, _ := utf8.DecodeRuneInString(*separator)
-	comm, _ := utf8.DecodeRuneInString(*comment)
+	switch ft := f.(type) {
 
-	r.Comma = val
-	r.Comment = comm
-	r.LazyQuotes = *quotes
+	case []interface{}:
+		arrayOfDocs := ft
+		var cnt int
+		for i, val := range arrayOfDocs {
+			doc := connection.CreateDocumentFromMap(val.(map[string]interface{}))
+			doc.SetIdString(fmt.Sprintf("%s", time.Now()))
 
-	firstLine := 1
-	var header []string
-	var counter int
-
-	doc, _ := connection.CreateEmptyDocument()
-
-	for {
-		indata, err := r.Read()
-		if err != nil && indata == nil {
-			fmt.Println(err)
-			break
-		}
-		if firstLine == 1 {
-			header = indata
-			firstLine = 0
-			continue
-		}
-		counter++
-		for i := 0; i < len(indata); i++ {
-			if i == 0 {
-				doc.SetIdString(indata[0] + "_" + fmt.Sprintf("%s", time.Now()))
-				continue
+			// Now we store the document in the DB
+			err = store.InsertDocument(doc)
+			if err != nil {
+				fmt.Println(err)
+				connection.Close()
+				os.Exit(-1)
 			}
-			doc.SetString(header[i], indata[i])
-		}
+			cnt = i
 
-		// Now we store the document in the DB
+			if (cnt+1)%1000 == 0 {
+				fmt.Printf("%d documents inserted...\n", cnt+1)
+			}
+		}
+		fmt.Println(cnt, " documents inserted.")
+
+	case interface{}:
+		doc := connection.CreateDocumentFromMap(ft.(map[string]interface{}))
 		err = store.InsertDocument(doc)
 		if err != nil {
 			fmt.Println(err)
-			continue
+			connection.Close()
+			os.Exit(-1)
 		}
-
-		doc.Clean()
 
 	}
 
-	fmt.Printf("Ingested %d documents into DB\n", counter)
+	fmt.Println("Closing connection...")
 	connection.Close()
 
 }
