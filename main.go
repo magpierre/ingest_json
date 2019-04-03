@@ -71,7 +71,6 @@ func connectMapR(connectionString string, storeName string) (*client.Connection,
 
 func main() {
 	maprURL := flag.String("mapr-url", "localhost:5678", "The URL to mapr in the form localhost:5678")
-
 	auth := flag.String("auth", "basic", "Authorization type")
 	user := flag.String("user", "mapr", "Username for the connection")
 	password := flag.String("password", "", "Password for the user")
@@ -138,12 +137,14 @@ func main() {
 
 	case interface{}:
 		doc := connection.CreateDocumentFromMap(ft.(map[string]interface{}))
+		doc.SetIdString(fmt.Sprintf("%s", time.Now()))
 		err = store.InsertDocument(doc)
 		if err != nil {
 			fmt.Println(err)
 			connection.Close()
 			os.Exit(-1)
 		}
+		fmt.Println("Document ingested.")
 	}
 	fmt.Println("Closing connection...")
 	connection.Close()
