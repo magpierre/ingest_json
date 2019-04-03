@@ -1,4 +1,4 @@
-#H1 ingest_json
+# ingest_json
 
 Sample Go client reading json files and ingest them as documents into a MapR Database
 
