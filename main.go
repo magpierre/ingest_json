@@ -71,6 +71,7 @@ func connectMapR(connectionString string, storeName string) (*client.Connection,
 
 func main() {
 	maprURL := flag.String("mapr-url", "localhost:5678", "The URL to mapr in the form localhost:5678")
+
 	auth := flag.String("auth", "basic", "Authorization type")
 	user := flag.String("user", "mapr", "Username for the connection")
 	password := flag.String("password", "", "Password for the user")
@@ -104,9 +105,7 @@ func main() {
 
 	/* Application starts here */
 	connection, store := connectMapR(connectionString, *storeName)
-
 	fmt.Println("Connected to MapR Database")
-
 	var f interface{}
 	err = json.Unmarshal(data, &f)
 	if err != nil {
@@ -116,14 +115,12 @@ func main() {
 	}
 
 	switch ft := f.(type) {
-
 	case []interface{}:
 		arrayOfDocs := ft
 		var cnt int
 		for i, val := range arrayOfDocs {
 			doc := connection.CreateDocumentFromMap(val.(map[string]interface{}))
 			doc.SetIdString(fmt.Sprintf("%s", time.Now()))
-
 			// Now we store the document in the DB
 			err = store.InsertDocument(doc)
 			if err != nil {
@@ -147,10 +144,7 @@ func main() {
 			connection.Close()
 			os.Exit(-1)
 		}
-
 	}
-
 	fmt.Println("Closing connection...")
 	connection.Close()
-
 }
